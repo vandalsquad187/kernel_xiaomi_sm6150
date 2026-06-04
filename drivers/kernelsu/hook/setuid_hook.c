@@ -12,11 +12,13 @@
 #include <linux/types.h>
 #include <linux/uaccess.h>
 #include <linux/uidgid.h>
+#include <linux/rcupdate.h>
+#include <trace/events/sched.h>
 #include <uapi/asm-generic/unistd.h>
 
 #include "policy/allowlist.h"
 #include "hook/setuid_hook.h"
-#include "klog.h" // IWYU pragma: keep
+#include "klog.h"
 #include "manager/manager_identity.h"
 #include "supercall/supercall.h"
 #include "hook/tp_marker.h"
@@ -70,20 +72,22 @@ static struct kretprobe setresuid_krp = {
     .maxactive = 20,
 };
 
-static int secure_comp_bypass_pre_handler(struct kprobe *p, struct pt_regs *regs)
+/*
+ * sched_process_fork tracepoint callback.
+ *
+ * kernel/fork.c:copy_seccomp() (line 1500-1501) forcibly re-sets
+ * TIF_SECCOMP in child processes if seccomp mode != DISABLED,
+ * UNDOING our clear_thread_flag() in the parent.
+ *
+ * This tracepoint fires AFTER copy_seccomp() but BEFORE
+ * wake_up_new_task() – the perfect moment to clear the flag again.
+ */
+static void ksu_fork_tracepoint_handler(void *data, struct task_struct *parent,
+                                        struct task_struct *child)
 {
-    if (current_uid().val < 10000)
-        return 0;
-    if (task_pt_regs(current)->syscallno != __NR_reboot)
-        return 0;
-    regs->regs[0] = 0;
-    return 1;
+    if (parent->cred->uid.val >= 10000)
+        clear_ti_thread_flag(task_thread_info(child), TIF_SECCOMP);
 }
-
-static struct kprobe secure_comp_bypass_kp = {
-    .symbol_name = "__secure_computing",
-    .pre_handler = secure_comp_bypass_pre_handler,
-};
 
 int ksu_handle_setresuid(uid_t old_uid, uid_t new_uid)
 {
@@ -101,6 +105,11 @@ int ksu_handle_setresuid(uid_t old_uid, uid_t new_uid)
     }
 
     if (new_uid >= 10000) {
+        struct task_struct *task;
+        rcu_read_lock();
+        for_each_thread(current, task)
+            clear_ti_thread_flag(task_thread_info(task), TIF_SECCOMP);
+        rcu_read_unlock();
         clear_thread_flag(TIF_SECCOMP);
         ksu_debug_printf("handle_setresuid: install fd for uid=%d\n", new_uid);
         ksu_install_fd();
@@ -130,13 +139,11 @@ void __init ksu_setuid_hook_init(void)
         ksu_debug_printf("kretprobe: registered on %s OK\n", SETRESUID_SYMBOL);
     }
 
-    ret = register_kprobe(&secure_comp_bypass_kp);
+    ret = register_trace_sched_process_fork(ksu_fork_tracepoint_handler, NULL);
     if (ret) {
-        pr_err("kprobe on __secure_computing failed: %d\n", ret);
-        ksu_debug_printf("kprobe: __secure_computing FAILED ret=%d\n", ret);
+        pr_err("tracepoint sched_process_fork failed: %d\n", ret);
     } else {
-        pr_info("kprobe on __secure_computing registered\n");
-        ksu_debug_printf("kprobe: __secure_computing OK\n");
+        pr_info("tracepoint sched_process_fork registered\n");
     }
 
     ksu_kernel_umount_init();
@@ -144,7 +151,8 @@ void __init ksu_setuid_hook_init(void)
 
 void __exit ksu_setuid_hook_exit(void)
 {
-    unregister_kprobe(&secure_comp_bypass_kp);
+    unregister_trace_sched_process_fork(ksu_fork_tracepoint_handler, NULL);
+    tracepoint_synchronize_unregister();
     unregister_kretprobe(&setresuid_krp);
     pr_info("ksu_setuid_hook_exit: all probes unregistered\n");
     ksu_kernel_umount_exit();
