@@ -35,7 +35,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 1
-          submodules: true
 
       # -------------------------------------------------------
       # Schritt 2: Cross-Compiler installieren
@@ -60,8 +59,14 @@ jobs:
           make sweet_defconfig
           make olddefconfig
 
-      - name: Step 3
-        run: echo hello world
+      - name: Build kernel
+        run: |
+          export ARCH=arm64
+          export CROSS_COMPILE=aarch64-linux-gnu-
+          export CROSS_COMPILE_COMPAT=arm-linux-gnueabihf-
+          export CROSS_COMPILE_ARM32=arm-linux-gnueabihf-
+          make -j$(nproc) Image.gz
+          echo "=== Image.gz OK ==="
 
       # -------------------------------------------------------
       # Schritt 4: AnyKernel3-flashbares ZIP erstellen
