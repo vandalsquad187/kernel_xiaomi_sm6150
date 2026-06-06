@@ -61,13 +61,7 @@ jobs:
           make olddefconfig
 
       - name: Build kernel
-        shell: bash
-        run: |
-          echo "hello world"
-          pwd
-          ls /
-          whoami
-          echo "done"
+        run: echo hello
 
       # -------------------------------------------------------
       # Schritt 4: AnyKernel3-flashbares ZIP erstellen
