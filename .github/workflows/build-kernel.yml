@@ -66,7 +66,9 @@ jobs:
           make olddefconfig
 
       - name: Build kernel
+        shell: bash
         run: |
+          set -o pipefail
           export ARCH=arm64
           export CROSS_COMPILE=aarch64-linux-gnu-
           export CC=clang
@@ -74,14 +76,20 @@ jobs:
           export AR=llvm-ar
           export NM=llvm-nm
           export OBJCOPY=llvm-objcopy
-          make -j$(nproc) Image.gz
+          make -j$(nproc) Image.gz 2>&1 | tee build.log
           echo "=== Image.gz OK ==="
-          make -j$(nproc) dtbs
+          make -j$(nproc) dtbs 2>&1 | tee -a build.log
           echo "=== dtbs OK ==="
-          make dtb.img
+          make dtb.img 2>&1 | tee -a build.log
           echo "=== dtb.img OK ==="
-          make dtbo.img
+          make dtbo.img 2>&1 | tee -a build.log
           echo "=== dtbo.img OK ==="
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: build.log
 
       # -------------------------------------------------------
       # Schritt 4: AnyKernel3-flashbares ZIP erstellen
