@@ -37,14 +37,16 @@ jobs:
           fetch-depth: 1
 
       # -------------------------------------------------------
-      # Schritt 2: Cross-Compiler installieren (Clang)
-      # VantomKernel ist für Clang optimiert.
+      # Schritt 2: Cross-Compiler installieren
+      # Hybrid: Clang für Kernel + GCC für Host-Tools + Linker
       # -------------------------------------------------------
       - name: Install toolchain
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            llvm clang lld
+            llvm clang lld \
+            gcc-aarch64-linux-gnu \
+            gcc-arm-linux-gnueabihf
 
       # -------------------------------------------------------
       # Schritt 3: Kernel + Device Trees bauen
@@ -54,13 +56,19 @@ jobs:
           export ARCH=arm64
           export CROSS_COMPILE=aarch64-linux-gnu-
           make sweet_defconfig
+          sed -i 's/CONFIG_LLVM_POLLY=y/# CONFIG_LLVM_POLLY is not set/' .config
           make olddefconfig
 
       - name: Build kernel
         run: |
           export ARCH=arm64
           export CROSS_COMPILE=aarch64-linux-gnu-
-          export LLVM=1
+          export CC=clang
+          export HOSTCC=gcc
+          export HOSTCXX=g++
+          export LD=aarch64-linux-gnu-ld
+          export AR=aarch64-linux-gnu-ar
+          export OBJCOPY=aarch64-linux-gnu-objcopy
           make -j$(nproc) Image.gz
           echo "=== Image.gz OK ==="
 
