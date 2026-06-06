@@ -41,15 +41,21 @@ jobs:
       # -------------------------------------------------------
       - name: Install toolchain
         run: |
+          cat /etc/os-release
+          echo "---"
+          # GCC-12 cross-compiler installieren
+          # Ubuntu 24.04 noble ships gcc-13/aarch64-linux-gnu als default,
+          # aber VantomKernel 4.14.328 braucht GCC ≤ 12
           sudo apt-get update
           sudo apt-get install -y \
+            gcc-aarch64-linux-gnu \
+            gcc-arm-linux-gnueabihf \
             gcc-12-aarch64-linux-gnu \
-            gcc-12-arm-linux-gnueabihf \
-            binutils-aarch64-linux-gnu \
-            binutils-arm-linux-gnueabihf
-          # Symlink GCC 12 als aarch64-linux-gnu-gcc
-          sudo ln -sf /usr/bin/aarch64-linux-gnu-gcc-12 /usr/local/bin/aarch64-linux-gnu-gcc
-          sudo ln -sf /usr/bin/arm-linux-gnueabihf-gcc-12 /usr/local/bin/arm-linux-gnueabihf-gcc
+            gcc-12-arm-linux-gnueabihf
+          # GCC 12 zum default machen (verdrängt GCC 13/14)
+          sudo update-alternatives --install /usr/bin/aarch64-linux-gnu-gcc aarch64-linux-gnu-gcc /usr/bin/aarch64-linux-gnu-gcc-12 200
+          sudo update-alternatives --install /usr/bin/aarch64-linux-gnu-g++ aarch64-linux-gnu-g++ /usr/bin/aarch64-linux-gnu-g++-12 200
+          sudo update-alternatives --install /usr/bin/arm-linux-gnueabihf-gcc arm-linux-gnueabihf-gcc /usr/bin/arm-linux-gnueabihf-gcc-12 200
 
       # -------------------------------------------------------
       # Schritt 3: Kernel + Device Trees bauen
@@ -58,22 +64,35 @@ jobs:
         run: |
           export ARCH=arm64
           export CROSS_COMPILE=aarch64-linux-gnu-
-          make sweet_defconfig
+          make sweet_defconfig 2>&1 | tee config.log
           sed -i 's/CONFIG_LLVM_POLLY=y/# CONFIG_LLVM_POLLY is not set/' .config
           sed -i 's/CONFIG_CC_STACKPROTECTOR_STRONG=y/# CONFIG_CC_STACKPROTECTOR_STRONG is not set/' .config
           sed -i 's/.*CONFIG_CC_STACKPROTECTOR_NONE.*/CONFIG_CC_STACKPROTECTOR_NONE=y/' .config
           grep -q 'CONFIG_CC_STACKPROTECTOR_NONE=y' .config || \
             echo 'CONFIG_CC_STACKPROTECTOR_NONE=y' >> .config
           sed -i '/CONFIG_CC_STACKPROTECTOR_REGULAR/d' .config
-          make olddefconfig
+          make olddefconfig 2>&1 | tee -a config.log
 
       - name: Build kernel
         run: |
           export ARCH=arm64
           export CROSS_COMPILE=aarch64-linux-gnu-
           export CROSS_COMPILE_COMPAT=arm-linux-gnueabihf-
-          make -j$(nproc) Image.gz
+          make -j$(nproc) Image.gz 2>&1 | tee build.log
           echo "=== Image.gz OK ==="
+
+      - name: Upload config log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: config-log
+          path: config.log
+      - name: Upload build log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: build.log
 
       # -------------------------------------------------------
       # Schritt 4: AnyKernel3-flashbares ZIP erstellen
