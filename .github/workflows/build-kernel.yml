@@ -44,6 +44,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y \
             llvm clang lld \
+            llvm-14-tools \
             gcc-aarch64-linux-gnu \
             gcc-arm-linux-gnueabihf
 
@@ -62,7 +63,7 @@ jobs:
           export ARCH=arm64
           export CROSS_COMPILE=aarch64-linux-gnu-
           export CROSS_COMPILE_COMPAT=arm-linux-gnueabihf-
-          make LLVM=1 HOSTCC=gcc -j$(nproc) Image.gz 2>&1 | tee build.log
+          make LLVM=1 HOSTCC=gcc LD=aarch64-linux-gnu-ld -j$(nproc) Image.gz 2>&1 | tee build.log
           echo "=== Image.gz OK ==="
 
       - name: Upload config log
