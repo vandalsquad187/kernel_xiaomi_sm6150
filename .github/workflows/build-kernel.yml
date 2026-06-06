@@ -39,14 +39,14 @@ jobs:
 
       # -------------------------------------------------------
       # Schritt 2: Cross-Compiler installieren
-      # VantomKernel wird mit Clang gebaut (wie vom Entwickler
-      # vorgesehen). GCC 14 verträgt sich nicht mit 4.14-Code.
+      # VantomKernel ist für Clang optimiert.
       # -------------------------------------------------------
       - name: Install toolchain
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            clang llvm lld
+            clang llvm lld \
+            gcc-aarch64-linux-gnu
 
       # -------------------------------------------------------
       # Schritt 3: Kernel + Device Trees bauen
@@ -56,40 +56,27 @@ jobs:
           export ARCH=arm64
           export CROSS_COMPILE=aarch64-linux-gnu-
           export CC=clang
-          export LD=ld.lld
-          export AR=llvm-ar
-          export NM=llvm-nm
-          export OBJCOPY=llvm-objcopy
+          export HOSTCC=gcc
+          export HOSTCXX=g++
           make sweet_defconfig
-          # Polly wird von Ubuntu-Standard-Clang nicht unterstützt
-          sed -i 's/CONFIG_LLVM_POLLY=y/# CONFIG_LLVM_POLLY is not set/' .config
           make olddefconfig
+          grep -E "^CONFIG_KSU|^CONFIG_KPROBES|^CONFIG_HZ_" .config
 
       - name: Build kernel
-        shell: bash
         run: |
-          set -o pipefail
           export ARCH=arm64
           export CROSS_COMPILE=aarch64-linux-gnu-
           export CC=clang
-          export LD=ld.lld
-          export AR=llvm-ar
-          export NM=llvm-nm
-          export OBJCOPY=llvm-objcopy
-          make -j$(nproc) Image.gz 2>&1 | tee build.log
+          export HOSTCC=gcc
+          export HOSTCXX=g++
+          make -j$(nproc) Image.gz
           echo "=== Image.gz OK ==="
-          make -j$(nproc) dtbs 2>&1 | tee -a build.log
+          make -j$(nproc) dtbs
           echo "=== dtbs OK ==="
-          make dtb.img 2>&1 | tee -a build.log
+          make dtb.img
           echo "=== dtb.img OK ==="
-          make dtbo.img 2>&1 | tee -a build.log
+          make dtbo.img
           echo "=== dtbo.img OK ==="
-      - name: Upload build log
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-log
-          path: build.log
 
       # -------------------------------------------------------
       # Schritt 4: AnyKernel3-flashbares ZIP erstellen
