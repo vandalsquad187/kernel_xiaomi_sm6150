@@ -59,12 +59,14 @@ jobs:
           make LLVM=1 HOSTCC=gcc olddefconfig 2>&1 | tee -a config.log
 
       - name: Build kernel
+        shell: bash -e -o pipefail {0}
         run: |
           export ARCH=arm64
           export CROSS_COMPILE=aarch64-linux-gnu-
           export CROSS_COMPILE_COMPAT=arm-linux-gnueabihf-
           make LLVM=1 HOSTCC=gcc LD=aarch64-linux-gnu-ld -j$(nproc) Image.gz 2>&1 | tee build.log
           echo "=== Image.gz OK ==="
+          ls -la arch/arm64/boot/
 
       - name: Upload config log
         if: always()
@@ -73,7 +75,7 @@ jobs:
           name: config-log
           path: config.log
       - name: Upload build log
-        if: failure()
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: build-log
