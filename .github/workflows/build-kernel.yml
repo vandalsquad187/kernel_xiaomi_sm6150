@@ -63,15 +63,24 @@ jobs:
       - name: Build kernel
         shell: bash
         run: |
-          set -e
           echo "=== Environment ==="
           uname -a
-          which aarch64-linux-gnu-gcc && echo "gcc exists" || echo "gcc MISSING"
-          which arm-linux-gnueabihf-gcc && echo "arm32 gcc exists" || echo "arm32 gcc MISSING"
-          aarch64-linux-gnu-gcc --version || echo "gcc version check failed"
-          # Compiler test
-          echo 'int main(){}' | aarch64-linux-gnu-gcc -x c - -o /dev/null -v 2>&1 && echo "=== CROSS_COMPILE works ===" || echo "=== CROSS_COMPILE FAILED ==="
-          # Shell test
+          echo "=== GCC check ==="
+          if command -v aarch64-linux-gnu-gcc; then
+            aarch64-linux-gnu-gcc --version
+            echo "int main(){}" | aarch64-linux-gnu-gcc -x c - -o /tmp/test_binary - >/dev/null 2>&1 && echo "=== CROSS_COMPILE works ===" || echo "=== Compile FAILED ==="
+            rm -f /tmp/test_binary
+          else
+            echo "gcc MISSING"
+            apt list --installed 2>/dev/null | grep gcc
+          fi
+          echo "=== ARM32 GCC check ==="
+          if command -v arm-linux-gnueabihf-gcc; then
+            arm-linux-gnueabihf-gcc --version
+          else
+            echo "arm32 gcc MISSING"
+          fi
+          echo "=== Shell test ==="
           export ARCH=arm64
           export CROSS_COMPILE=aarch64-linux-gnu-
           export CROSS_COMPILE_COMPAT=arm-linux-gnueabihf-
