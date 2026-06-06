@@ -23,7 +23,7 @@ on:
 jobs:
   build:
     name: Build sweet kernel
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     permissions:
       contents: write
 
@@ -41,21 +41,11 @@ jobs:
       # -------------------------------------------------------
       - name: Install toolchain
         run: |
-          cat /etc/os-release
-          echo "---"
-          # GCC-12 cross-compiler installieren
-          # Ubuntu 24.04 noble ships gcc-13/aarch64-linux-gnu als default,
-          # aber VantomKernel 4.14.328 braucht GCC ≤ 12
+          # Ubuntu 22.04 ships GCC 11 cross-compiler by default
           sudo apt-get update
           sudo apt-get install -y \
             gcc-aarch64-linux-gnu \
-            gcc-arm-linux-gnueabihf \
-            gcc-12-aarch64-linux-gnu \
-            gcc-12-arm-linux-gnueabihf
-          # GCC 12 zum default machen (verdrängt GCC 13/14)
-          sudo update-alternatives --install /usr/bin/aarch64-linux-gnu-gcc aarch64-linux-gnu-gcc /usr/bin/aarch64-linux-gnu-gcc-12 200
-          sudo update-alternatives --install /usr/bin/aarch64-linux-gnu-g++ aarch64-linux-gnu-g++ /usr/bin/aarch64-linux-gnu-g++-12 200
-          sudo update-alternatives --install /usr/bin/arm-linux-gnueabihf-gcc arm-linux-gnueabihf-gcc /usr/bin/arm-linux-gnueabihf-gcc-12 200
+            gcc-arm-linux-gnueabihf
 
       # -------------------------------------------------------
       # Schritt 3: Kernel + Device Trees bauen
