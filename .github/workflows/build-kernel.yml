@@ -56,17 +56,33 @@ jobs:
           export CROSS_COMPILE=aarch64-linux-gnu-
           export CROSS_COMPILE_COMPAT=arm-linux-gnueabihf-
           make sweet_defconfig
+          # GCC verträgt keine LLVM/Polly-Flags
           sed -i 's/CONFIG_LLVM_POLLY=y/# CONFIG_LLVM_POLLY is not set/' .config
+          # GCC 13 (Ubuntu 24.04) erkennt -fstack-protector nicht
+          # im Cross-Compile auf aarch64 — komplett deaktivieren
+          sed -i 's/CONFIG_CC_STACKPROTECTOR_STRONG=y/# CONFIG_CC_STACKPROTECTOR_STRONG is not set/' .config
+          sed -i 's/.*CONFIG_CC_STACKPROTECTOR_NONE.*/CONFIG_CC_STACKPROTECTOR_NONE=y/' .config
+          grep -q 'CONFIG_CC_STACKPROTECTOR_NONE=y' .config || \
+            echo 'CONFIG_CC_STACKPROTECTOR_NONE=y' >> .config
+          sed -i '/CONFIG_CC_STACKPROTECTOR_REGULAR/d' .config
           make olddefconfig
-          grep -E "^CONFIG_KSU=|^CONFIG_KSU_SUSFS=|^CONFIG_KSU_KPROBES_HOOK=" .config
 
       - name: Build kernel
+        shell: bash
         run: |
+          set -o pipefail
           export ARCH=arm64
           export CROSS_COMPILE=aarch64-linux-gnu-
           export CROSS_COMPILE_COMPAT=arm-linux-gnueabihf-
-          make -j$(nproc) Image.gz
+          make -j$(nproc) Image.gz 2>&1 | tee build.log
           echo "=== Image.gz OK ==="
+          head -5 build.log; echo "..."; tail -30 build.log
+      - name: Upload build log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: build.log
 
       # -------------------------------------------------------
       # Schritt 4: AnyKernel3-flashbares ZIP erstellen
