@@ -37,15 +37,14 @@ jobs:
           fetch-depth: 1
 
       # -------------------------------------------------------
-      # Schritt 2: Cross-Compiler installieren
+      # Schritt 2: Cross-Compiler installieren (Clang)
+      # VantomKernel ist für Clang optimiert.
       # -------------------------------------------------------
       - name: Install toolchain
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            gcc-aarch64-linux-gnu \
-            gcc-arm-linux-gnueabihf \
-            libc6-dev-arm64-cross
+            llvm clang lld
 
       # -------------------------------------------------------
       # Schritt 3: Kernel + Device Trees bauen
@@ -54,35 +53,16 @@ jobs:
         run: |
           export ARCH=arm64
           export CROSS_COMPILE=aarch64-linux-gnu-
-          export CROSS_COMPILE_COMPAT=arm-linux-gnueabihf-
           make sweet_defconfig
-          # GCC verträgt keine LLVM/Polly-Flags
-          sed -i 's/CONFIG_LLVM_POLLY=y/# CONFIG_LLVM_POLLY is not set/' .config
-          # GCC 13 (Ubuntu 24.04) erkennt -fstack-protector nicht
-          # im Cross-Compile auf aarch64 — komplett deaktivieren
-          sed -i 's/CONFIG_CC_STACKPROTECTOR_STRONG=y/# CONFIG_CC_STACKPROTECTOR_STRONG is not set/' .config
-          sed -i 's/.*CONFIG_CC_STACKPROTECTOR_NONE.*/CONFIG_CC_STACKPROTECTOR_NONE=y/' .config
-          grep -q 'CONFIG_CC_STACKPROTECTOR_NONE=y' .config || \
-            echo 'CONFIG_CC_STACKPROTECTOR_NONE=y' >> .config
-          sed -i '/CONFIG_CC_STACKPROTECTOR_REGULAR/d' .config
           make olddefconfig
 
       - name: Build kernel
-        shell: bash
         run: |
-          set -o pipefail
           export ARCH=arm64
           export CROSS_COMPILE=aarch64-linux-gnu-
-          export CROSS_COMPILE_COMPAT=arm-linux-gnueabihf-
-          make -j$(nproc) Image.gz 2>&1 | tee build.log
+          export LLVM=1
+          make -j$(nproc) Image.gz
           echo "=== Image.gz OK ==="
-          head -5 build.log; echo "..."; tail -30 build.log
-      - name: Upload build log
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-log
-          path: build.log
 
       # -------------------------------------------------------
       # Schritt 4: AnyKernel3-flashbares ZIP erstellen
