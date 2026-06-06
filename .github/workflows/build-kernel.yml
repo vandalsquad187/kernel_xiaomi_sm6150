@@ -41,9 +41,9 @@ jobs:
       # -------------------------------------------------------
       - name: Install toolchain
         run: |
-          # Ubuntu 22.04 ships GCC 11 cross-compiler by default
           sudo apt-get update
           sudo apt-get install -y \
+            llvm clang lld \
             gcc-aarch64-linux-gnu \
             gcc-arm-linux-gnueabihf
 
@@ -53,19 +53,19 @@ jobs:
       - name: Configure kernel
         run: |
           export ARCH=arm64
+          export CC=clang
+          export CLANG_TRIPLE=aarch64-linux-gnu-
           export CROSS_COMPILE=aarch64-linux-gnu-
           make sweet_defconfig 2>&1 | tee config.log
-          sed -i 's/CONFIG_LLVM_POLLY=y/# CONFIG_LLVM_POLLY is not set/' .config
-          sed -i 's/CONFIG_CC_STACKPROTECTOR_STRONG=y/# CONFIG_CC_STACKPROTECTOR_STRONG is not set/' .config
-          sed -i 's/.*CONFIG_CC_STACKPROTECTOR_NONE.*/CONFIG_CC_STACKPROTECTOR_NONE=y/' .config
-          grep -q 'CONFIG_CC_STACKPROTECTOR_NONE=y' .config || \
-            echo 'CONFIG_CC_STACKPROTECTOR_NONE=y' >> .config
-          sed -i '/CONFIG_CC_STACKPROTECTOR_REGULAR/d' .config
           make olddefconfig 2>&1 | tee -a config.log
 
       - name: Build kernel
         run: |
           export ARCH=arm64
+          export CC=clang
+          export HOSTCC=gcc
+          export HOSTCXX=g++
+          export CLANG_TRIPLE=aarch64-linux-gnu-
           export CROSS_COMPILE=aarch64-linux-gnu-
           export CROSS_COMPILE_COMPAT=arm-linux-gnueabihf-
           make -j$(nproc) Image.gz 2>&1 | tee build.log
