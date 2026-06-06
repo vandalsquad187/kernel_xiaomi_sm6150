@@ -60,8 +60,8 @@ jobs:
           make sweet_defconfig
           make olddefconfig
 
-      - name: Build kernel
-        run: echo hello
+      - name: Step 3
+        run: echo hello world
 
       # -------------------------------------------------------
       # Schritt 4: AnyKernel3-flashbares ZIP erstellen
