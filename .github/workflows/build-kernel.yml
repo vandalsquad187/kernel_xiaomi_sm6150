@@ -1,0 +1,133 @@
+# Build Kernel — K6A Custom Kernel for sweet
+# -----------------------------------------------------------
+# Läuft bei jedem Push auf Branch 23.2
+# Baut den Kernel + DTBs, packt ein flashbares AnyKernel3-ZIP
+# und veröffentlicht es als GitHub Release.
+#
+# Ablauf:
+#   1. Repo clonen
+#   2. AArch64 Cross-Compiler installieren
+#   3. Kernel + DTBs bauen (sweet_defconfig)
+#   4. Artefakte in anykernel/ kopieren
+#   5. Flashbares ZIP erstellen
+#   6. Release erstellen mit ZIP als Artefakt
+# -----------------------------------------------------------
+
+name: Build Kernel
+
+on:
+  push:
+    branches: [vantom-14]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build sweet kernel
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      # -------------------------------------------------------
+      # Schritt 1: Repo auschecken
+      # -------------------------------------------------------
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          submodules: true
+
+      # -------------------------------------------------------
+      # Schritt 2: Cross-Compiler installieren
+      # Der Kernel 4.14 baut sauber mit dem distro-eigenen
+      # aarch64-linux-gnu-gcc (GCC 13/14).
+      # -------------------------------------------------------
+      - name: Install toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            gcc-aarch64-linux-gnu \
+            gcc-arm-linux-gnueabihf
+
+      # -------------------------------------------------------
+      # Schritt 3: Kernel + Device Trees bauen
+      # -------------------------------------------------------
+      - name: Configure kernel
+        run: |
+          export ARCH=arm64
+          export CROSS_COMPILE=aarch64-linux-gnu-
+          export CROSS_COMPILE_COMPAT=arm-linux-gnueabihf-
+          make sweet_defconfig
+          # GCC verträgt keine LLVM/Polly-Flags
+          sed -i 's/CONFIG_LLVM_POLLY=y/# CONFIG_LLVM_POLLY is not set/' .config
+          # GCC 13 (Ubuntu 24.04) erkennt -fstack-protector nicht
+          # im Cross-Compile auf aarch64 — komplett deaktivieren
+          sed -i 's/CONFIG_CC_STACKPROTECTOR_STRONG=y/# CONFIG_CC_STACKPROTECTOR_STRONG is not set/' .config
+          sed -i 's/.*CONFIG_CC_STACKPROTECTOR_NONE.*/CONFIG_CC_STACKPROTECTOR_NONE=y/' .config
+          grep -q 'CONFIG_CC_STACKPROTECTOR_NONE=y' .config || \
+            echo 'CONFIG_CC_STACKPROTECTOR_NONE=y' >> .config
+          sed -i '/CONFIG_CC_STACKPROTECTOR_REGULAR/d' .config
+          make olddefconfig
+
+      - name: Build kernel
+        run: |
+          export ARCH=arm64
+          export CROSS_COMPILE=aarch64-linux-gnu-
+          export CROSS_COMPILE_COMPAT=arm-linux-gnueabihf-
+          make -j$(nproc) Image.gz dtb.img dtbo.img
+
+      # -------------------------------------------------------
+      # Schritt 4: AnyKernel3-flashbares ZIP erstellen
+      # anykernel/ liegt im Repo und wird nur mit den neuen
+      # Artefakten befüllt.
+      # -------------------------------------------------------
+      - name: Build flashable ZIP
+        run: |
+          # Kernel + DTBs in den AnyKernel3-Ordner kopieren
+          cp arch/arm64/boot/Image.gz anykernel/
+          cp arch/arm64/boot/dtb.img anykernel/
+          cp arch/arm64/boot/dtbo.img anykernel/
+          # ZIP erstellen (ohne .git und README — die sind nur im Repo)
+          cd anykernel
+          zip -r9 ../K6A-Kernel-sweet-${{ github.run_number }}.zip * \
+            -x ".git/*" "README.md"
+
+      # -------------------------------------------------------
+      # Schritt 5: Release erstellen
+      # Das Release bekommt einen Tag build-<Run-Nummer>
+      # und enthält das flashbare ZIP.
+      # -------------------------------------------------------
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: "K6A Kernel Build #${{ github.run_number }}"
+          body: |
+            **K6A Custom Kernel** für sweet (sweetin / sweet_k6a)
+
+            - **Basis:** 4.14.356-openela-rc1-perf
+            - **Root:** KernelSU-Next (built-in, non-GKI)
+            - **Manager:** KernelSU-Next Manager APK installieren
+
+            **Flashbar via OrangeFox / TWRP** — einfach das ZIP flashen.
+
+            Nach dem Flash die **KernelSU-Next Manager App** installieren
+            (APK von GitHub Releases: https://github.com/rifsxd/KernelSU-Next/releases)
+            und öffnen — Root sollte sofort verfügbar sein.
+
+            **Changelog gegenüber Build #58:**
+            - KoWSU entfernt, KSU Next integriert
+            - Kernel heißt jetzt `4.14.356-openela-rc1-perf` (unscheinbar)
+          files: K6A-Kernel-sweet-*.zip
+
+      # -------------------------------------------------------
+      # Schritt 6: Zusammenfassung der Änderungen ausgeben
+      # -------------------------------------------------------
+      - name: Show summary
+        run: |
+          echo "=== Build abgeschlossen ==="
+          echo "ZIP: K6A-Kernel-sweet-${{ github.run_number }}.zip"
+          echo ""
+          echo "Enthaltene Änderungen:"
+          echo "  - KernelSU-Next built-in"
+          echo "  - Kernel name: 4.14.356-openela-rc1-perf"
