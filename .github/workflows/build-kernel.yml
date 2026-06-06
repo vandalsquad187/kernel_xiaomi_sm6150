@@ -44,7 +44,12 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y \
             gcc-12-aarch64-linux-gnu \
-            gcc-12-arm-linux-gnueabihf
+            gcc-12-arm-linux-gnueabihf \
+            binutils-aarch64-linux-gnu \
+            binutils-arm-linux-gnueabihf
+          # Symlink GCC 12 als aarch64-linux-gnu-gcc
+          sudo ln -sf /usr/bin/aarch64-linux-gnu-gcc-12 /usr/local/bin/aarch64-linux-gnu-gcc
+          sudo ln -sf /usr/bin/arm-linux-gnueabihf-gcc-12 /usr/local/bin/arm-linux-gnueabihf-gcc
 
       # -------------------------------------------------------
       # Schritt 3: Kernel + Device Trees bauen
