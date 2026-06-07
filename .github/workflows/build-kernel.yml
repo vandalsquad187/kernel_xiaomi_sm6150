@@ -64,15 +64,12 @@ jobs:
           export ARCH=arm64
           export CROSS_COMPILE=aarch64-linux-gnu-
           export CROSS_COMPILE_COMPAT=arm-linux-gnueabihf-
-          # Build Image (not Image.gz) to isolate objcopy failure from gzip failure
-          make LLVM=1 HOSTCC=gcc LD=aarch64-linux-gnu-ld OBJCOPY=aarch64-linux-gnu-objcopy -j$(nproc) Image 2>&1 | tee build.log
-          echo "=== Image OK ==="
+          # Pass 1: Kernel Image + Device Tree sources
+          make LLVM=1 HOSTCC=gcc LD=aarch64-linux-gnu-ld OBJCOPY=aarch64-linux-gnu-objcopy -j$(nproc) Image.gz dtbs 2>&1 | tee build.log
+          # Pass 2: Concatenated DTBs (separate pass because DTB_OBJS is := evaluated at parse time)
+          make LLVM=1 HOSTCC=gcc LD=aarch64-linux-gnu-ld OBJCOPY=aarch64-linux-gnu-objcopy dtb.img dtbo.img 2>&1 | tee -a build.log
+          echo "=== Build OK ==="
           ls -la arch/arm64/boot/
-          ls -la arch/arm64/boot/Image  # verify Image exists
-          gzip --version
-          # Manually gzip for AnyKernel
-          gzip -n -f -9 arch/arm64/boot/Image
-          echo "=== Manual gzip OK ==="
 
       - name: Upload config log
         if: always()
