@@ -64,9 +64,15 @@ jobs:
           export ARCH=arm64
           export CROSS_COMPILE=aarch64-linux-gnu-
           export CROSS_COMPILE_COMPAT=arm-linux-gnueabihf-
-          make LLVM=1 HOSTCC=gcc LD=aarch64-linux-gnu-ld OBJCOPY=aarch64-linux-gnu-objcopy -j$(nproc) Image.gz 2>&1 | tee build.log
-          echo "=== Image.gz OK ==="
+          # Build Image (not Image.gz) to isolate objcopy failure from gzip failure
+          make LLVM=1 HOSTCC=gcc LD=aarch64-linux-gnu-ld OBJCOPY=aarch64-linux-gnu-objcopy -j$(nproc) Image 2>&1 | tee build.log
+          echo "=== Image OK ==="
           ls -la arch/arm64/boot/
+          ls -la arch/arm64/boot/Image  # verify Image exists
+          gzip --version
+          # Manually gzip for AnyKernel
+          gzip -n -f -9 arch/arm64/boot/Image
+          echo "=== Manual gzip OK ==="
 
       - name: Upload config log
         if: always()
