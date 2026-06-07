@@ -64,7 +64,7 @@ jobs:
           export ARCH=arm64
           export CROSS_COMPILE=aarch64-linux-gnu-
           export CROSS_COMPILE_COMPAT=arm-linux-gnueabihf-
-          make LLVM=1 HOSTCC=gcc LD=aarch64-linux-gnu-ld -j$(nproc) Image.gz 2>&1 | tee build.log
+          make LLVM=1 HOSTCC=gcc LD=aarch64-linux-gnu-ld OBJCOPY=aarch64-linux-gnu-objcopy -j$(nproc) Image.gz 2>&1 | tee build.log
           echo "=== Image.gz OK ==="
           ls -la arch/arm64/boot/
 
