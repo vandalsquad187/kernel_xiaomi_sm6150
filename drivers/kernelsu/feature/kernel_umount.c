@@ -9,9 +9,7 @@
 #include <linux/path.h>
 #include <linux/printk.h>
 #include <linux/types.h>
-#ifndef KSU_HAS_PATH_UMOUNT
 #include <linux/syscalls.h>
-#endif
 
 #include "kernel_umount.h"
 #include "klog.h" // IWYU pragma: keep
