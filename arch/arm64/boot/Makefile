@@ -16,6 +16,7 @@
 
 include $(srctree)/arch/arm64/boot/dts/Makefile
 
+OBJCOPY = $(CROSS_COMPILE)objcopy
 OBJCOPYFLAGS_Image :=-O binary -R .note -R .note.gnu.build-id -R .comment -R .rela.dyn -S
 
 targets := Image Image.bz2 Image.gz Image.lz4 Image.lzma Image.lzo dtbo.img dtb.img
